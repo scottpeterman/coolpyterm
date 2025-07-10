@@ -1,6 +1,6 @@
 # CoolPyTerm
 
-A hardware-accelerated SSH terminal emulator with authentic retro CRT effects, built with PyQt6 and OpenGL.
+A hardware-accelerated SSH terminal emulator with authentic retro CRT effects, built with PyQt6 and OpenGL.  Inspired by the Cool Retro Terminal project.
 
 ![CoolPyTerm Screenshot](screenshots/angband.png)
 
@@ -172,8 +172,7 @@ coolpyterm/
 
 ### Minimum Requirements
 - **OS**: Windows 10, macOS 10.14, or Linux
-- **Python**: 3.8 or higher
-- **Memory**: 512MB RAM
+- **Python**: 3.10 or higher
 - **Graphics**: OpenGL 3.3 support
 
 ### Recommended
@@ -199,13 +198,99 @@ python -m coolpyterm.checkogl
 - Reduce font size for better performance
 - Use windowed mode instead of full screen
 
-## 🤝 Contributing
+# Building Distributions with setup.py
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+## 1. Development Installation
+
+```bash
+# Install in development/editable mode
+pip install -e .
+
+# Install with development dependencies
+pip install -e ".[dev]"
+
+# Test the installation
+coolpyterm
+python -m coolpyterm
+```
+
+## 2. Building Wheel Distribution
+
+```bash
+# Install build dependencies
+pip install wheel setuptools
+
+# Build wheel (recommended format)
+python setup.py bdist_wheel
+
+# Creates: dist/coolpyterm-1.0.0-py3-none-any.whl
+```
+
+## 3. Building Source Distribution  
+
+```bash
+# Build source distribution (tarball)
+python setup.py sdist
+
+# Creates: dist/coolpyterm-1.0.0.tar.gz
+```
+
+## 4. Building Both Wheel and Source
+
+```bash
+# Build both wheel and source distribution
+python setup.py sdist bdist_wheel
+
+# Creates both:
+# dist/coolpyterm-1.0.0.tar.gz
+# dist/coolpyterm-1.0.0-py3-none-any.whl
+```
+
+## 5. Clean Build (Recommended)
+
+```bash
+# Clean previous builds
+python setup.py clean --all
+rm -rf build/ dist/ *.egg-info/
+
+# Fresh build
+python setup.py sdist bdist_wheel
+
+# Verify contents
+twine check dist/*
+```
+
+## Windows Build Commands
+
+```cmd
+# Windows equivalent of clean build
+python setup.py clean --all
+if exist build rmdir /s /q build
+if exist dist rmdir /s /q dist
+for /d %%i in (*.egg-info) do rmdir /s /q "%%i"
+
+# Build distributions
+python setup.py sdist bdist_wheel
+
+# Verify
+twine check dist\*
+```
+
+## Upload to PyPI
+
+```bash
+# Install upload tools
+pip install twine
+
+# Check distributions before upload
+twine check dist/*
+
+# Upload to Test PyPI first (recommended)
+twine upload --repository testpypi dist/*
+
+# Upload to real PyPI
+twine upload dist/*
+```
 
 ## 📜 License
 
