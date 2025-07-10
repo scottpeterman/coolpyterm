@@ -15,7 +15,7 @@ def read_requirements():
 
 setup(
     name="coolpyterm",
-    version="0.1.1",
+    version="0.1.2",
     author="Scott Peterman",
     author_email="scottpeterman@gmail.com",
     description="A hardware-accelerated SSH terminal emulator with authentic retro CRT effects, inspired by the Cool Retro Terminal project",

@@ -158,6 +158,75 @@ class RetroThemeManager:
             description="Retro DOS-style blue terminal"
         )
 
+        self.themes["ibm_bw"] = TerminalTheme(
+            name="IBM DOS B&W",
+            foreground=QColor(255, 255, 255),  # Bright white
+            background=QColor(0, 0, 0),  # Pure black
+
+            # ANSI colors - all grayscale variations for monochrome
+            black=QColor(0, 0, 0),
+            red=QColor(170, 170, 170),  # Light gray instead of red
+            green=QColor(200, 200, 200),  # Lighter gray instead of green
+            yellow=QColor(255, 255, 255),  # White instead of yellow
+            blue=QColor(128, 128, 128),  # Medium gray instead of blue
+            magenta=QColor(200, 200, 200),  # Light gray instead of magenta
+            cyan=QColor(230, 230, 230),  # Very light gray instead of cyan
+            white=QColor(255, 255, 255),  # Pure white
+
+            bright_black=QColor(85, 85, 85),
+            bright_red=QColor(200, 200, 200),
+            bright_green=QColor(230, 230, 230),
+            bright_yellow=QColor(255, 255, 255),
+            bright_blue=QColor(170, 170, 170),
+            bright_magenta=QColor(230, 230, 230),
+            bright_cyan=QColor(245, 245, 245),
+            bright_white=QColor(255, 255, 255),
+
+            # CRT properties for sharp IBM monochrome monitor
+            background_glow_intensity=0.05,  # Very minimal glow
+            brightness=1.4,  # High brightness for crisp text
+            contrast=1.8,  # Very high contrast
+            phosphor_persistence=0.3,  # Quick decay for sharp text
+            bloom_radius=0.8,  # Minimal bloom
+
+            description="Sharp IBM DOS-style black and white monochrome"
+        )
+
+        # PLASMA RED THEME
+        self.themes["plasma"] = TerminalTheme(
+            name="Plasma Red",
+            foreground=QColor(255, 85, 85),  # Bright red-orange
+            background=QColor(0, 0, 0),  # Pure black
+
+            # ANSI colors - red/orange variations for plasma look
+            black=QColor(0, 0, 0),
+            red=QColor(255, 100, 100),  # Bright red
+            green=QColor(255, 140, 85),  # Orange-red (no true green on plasma)
+            yellow=QColor(255, 200, 150),  # Yellowish-orange
+            blue=QColor(200, 80, 80),  # Dark red (no true blue)
+            magenta=QColor(255, 120, 180),  # Pink-red
+            cyan=QColor(255, 160, 120),  # Light orange-red
+            white=QColor(255, 200, 200),  # Light pink-white
+
+            bright_black=QColor(80, 20, 20),  # Dark red-black
+            bright_red=QColor(255, 120, 120),
+            bright_green=QColor(255, 180, 120),
+            bright_yellow=QColor(255, 220, 180),
+            bright_blue=QColor(220, 100, 100),
+            bright_magenta=QColor(255, 150, 200),
+            bright_cyan=QColor(255, 200, 160),
+            bright_white=QColor(255, 230, 230),
+
+            # CRT properties for plasma display characteristics
+            background_glow_intensity=0.22,  # Strong glow for plasma effect
+            brightness=1.25,  # Moderate brightness
+            contrast=1.1,  # Lower contrast for plasma warmth
+            phosphor_persistence=1.2,  # Longer persistence for plasma glow
+            bloom_radius=2.8,  # Strong bloom for plasma effect
+
+            description="Red plasma display with warm glow"
+        )
+
     def get_theme(self, theme_name: str) -> TerminalTheme:
         """Get a theme by name"""
         return self.themes.get(theme_name, self.themes["green"])

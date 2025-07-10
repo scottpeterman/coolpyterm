@@ -786,7 +786,7 @@ class HardwareTerminalWindow(QMainWindow):
             self.show_connection_dialog()
 
     def create_menu_system(self):
-        """Fixed menu system with proper cursor controls"""
+        """Complete menu system with dynamic theme detection"""
         menubar = self.menuBar()
 
         # File Menu
@@ -826,21 +826,55 @@ class HardwareTerminalWindow(QMainWindow):
         self.fullscreen_action.triggered.connect(self.toggle_fullscreen)
         view_menu.addAction(self.fullscreen_action)
 
-        # Theme Menu
+        # DYNAMIC Theme Menu
         theme_menu = menubar.addMenu('&Theme')
         self.theme_group = QActionGroup(self)
+
+        # Get themes dynamically from theme manager
         themes = self.theme_manager.get_available_themes()
 
-        for theme_name in themes:
-            theme_title = theme_name.replace('_', ' ').title()
-            action = QAction(f'&{theme_title}', self)
+        # Define display names for better menu appearance
+        theme_display_names = {
+            'green': 'Green Phosphor',
+            'amber': 'Amber Phosphor',
+            'dos': 'DOS Terminal',
+            'ibm_bw': 'IBM DOS B&W',
+            'plasma': 'Plasma Red'
+        }
+
+        current_theme = self.theme_manager.current_theme
+
+        for i, theme_name in enumerate(themes):
+            # Get nice display name or fallback to formatted theme name
+            display_name = theme_display_names.get(theme_name, theme_name.replace('_', ' ').title())
+
+            # Add keyboard shortcut for first 9 themes (Ctrl+1, Ctrl+2, etc.)
+            if i < 9:
+                action = QAction(f'&{i + 1}. {display_name}', self)
+                action.setShortcut(f'Ctrl+{i + 1}')
+            else:
+                action = QAction(f'{display_name}', self)
+
             action.setCheckable(True)
-            action.setData(theme_name)
-            if theme_name == 'green':
+            action.setData(theme_name)  # Store the actual theme key
+
+            # Set default theme as checked
+            if theme_name == current_theme:
                 action.setChecked(True)
+
+            # Connect to theme change handler
             action.triggered.connect(lambda checked, t=theme_name: self.change_theme(t))
+
             self.theme_group.addAction(action)
             theme_menu.addAction(action)
+
+        # Add separator and theme info action
+        theme_menu.addSeparator()
+
+        # Add "Show Theme Info" action for debugging
+        theme_info_action = QAction('Show Theme &Info...', self)
+        theme_info_action.triggered.connect(self.show_theme_info)
+        theme_menu.addAction(theme_info_action)
 
         # Effects Menu
         effects_menu = menubar.addMenu('&Effects')
@@ -853,11 +887,11 @@ class HardwareTerminalWindow(QMainWindow):
         self.glow_action.triggered.connect(self.toggle_glow)
         effects_menu.addAction(self.glow_action)
 
-
-
+        # Ambient background glow
         self.ambient_glow_action = QAction('&Ambient Background Glow', self)
         self.ambient_glow_action.setCheckable(True)
         self.ambient_glow_action.setChecked(True)  # Default on
+        self.ambient_glow_action.setShortcut('Ctrl+Shift+A')
         self.ambient_glow_action.setToolTip("Subtle phosphor glow across entire screen background")
         self.ambient_glow_action.triggered.connect(self.toggle_ambient_glow)
         effects_menu.addAction(self.ambient_glow_action)
@@ -868,11 +902,12 @@ class HardwareTerminalWindow(QMainWindow):
         increase_ambient_action.triggered.connect(self.increase_ambient_glow)
         effects_menu.addAction(increase_ambient_action)
 
-        decrease_ambient_action = QAction('Decrease Ambient &Intensity', self)
+        decrease_ambient_action = QAction('Decrease Ambient Intensit&y', self)
         decrease_ambient_action.setShortcut('Ctrl+Alt+O')
         decrease_ambient_action.setToolTip("Decrease ambient glow intensity (O)")
         decrease_ambient_action.triggered.connect(self.decrease_ambient_glow)
         effects_menu.addAction(decrease_ambient_action)
+
         # Scanlines
         self.scanlines_action = QAction('&Scanlines', self)
         self.scanlines_action.setCheckable(True)
@@ -922,6 +957,33 @@ class HardwareTerminalWindow(QMainWindow):
             action.triggered.connect(lambda checked, ms=rate_ms: self.set_cursor_blink_rate(ms))
             self.blink_rate_group.addAction(action)
             blink_rate_menu.addAction(action)
+
+    def show_theme_info(self):
+        """Show information about current theme and available themes"""
+        if self._is_closing:
+            return
+
+        from PyQt6.QtWidgets import QMessageBox
+
+        current_theme = self.theme_manager.get_current_theme()
+        available_themes = self.theme_manager.get_available_themes()
+
+        info_text = f"Current Theme: {current_theme.name}\n"
+        info_text += f"Description: {current_theme.description}\n\n"
+        info_text += f"CRT Properties:\n"
+        info_text += f"  • Background Glow: {current_theme.background_glow_intensity:.2f}\n"
+        info_text += f"  • Brightness: {current_theme.brightness:.2f}\n"
+        info_text += f"  • Contrast: {current_theme.contrast:.2f}\n"
+        info_text += f"  • Phosphor Persistence: {current_theme.phosphor_persistence:.2f}\n"
+        info_text += f"  • Bloom Radius: {current_theme.bloom_radius:.2f}\n\n"
+        info_text += f"Available Themes ({len(available_themes)}):\n"
+
+        for theme_name in available_themes:
+            theme = self.theme_manager.get_theme(theme_name)
+            info_text += f"  • {theme.name}: {theme.description}\n"
+
+        QMessageBox.information(self, "Theme Information", info_text)
+
 
     def show_connection_manager(self):
         """Show the connection manager dialog"""
