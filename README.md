@@ -2,7 +2,7 @@
 
 A hardware-accelerated SSH and Windows shell terminal emulator with authentic retro CRT effects, built with PyQt6 and OpenGL.  Inspired by the Cool Retro Terminal project.
 
-![CoolPyTerm Screenshot](https://raw.githubusercontent.com/scottpeterman/coolpyterm/refs/heads/main/screenshots/slides1.gif)
+![CoolPyTerm Screenshot](https://raw.githubusercontent.com/scottpeterman/coolpyterm/refs/heads/main/screenshots/slides.gif)
 
 ## ✨ Features
 
