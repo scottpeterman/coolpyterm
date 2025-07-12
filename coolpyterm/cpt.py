@@ -8,6 +8,7 @@ from PyQt6.QtCore import QTimer, Qt, pyqtSlot, QRect, QThread
 from PyQt6.QtGui import QAction, QActionGroup, QFont, QFontMetrics, QColor, QPainter, QPen, QBrush, QImage, QKeySequence
 import pyte
 from pyte.screens import HistoryScreen
+from coolpyterm.backend_factory import create_backend
 
 from coolpyterm.connection_manager import ConnectionManager, ConnectionProfile, ConnectionDialog
 from coolpyterm.opengl_grid_widget import OpenGLRetroGridWidget
@@ -101,6 +102,59 @@ class TerminalWithHardwareGrid(QWidget):
         self.grid_widget.resizeEvent = self.on_grid_resize
 
         print("Terminal initialized - ready for SSH connection")
+
+    # Add these methods to your TerminalWithHardwareGrid class in cpt.py
+    # Add them after your existing connect_to_ssh method
+
+    def connect_to_local_terminal(self, connection_config):
+        """Connect to local terminal with given configuration"""
+        if self._is_closing:
+            return False
+
+        try:
+            print(f"Connecting to local terminal: {connection_config}")
+
+            # Import and use the backend factory
+            from coolpyterm.backend_factory import create_backend
+
+            # Create appropriate backend (Windows terminal)
+            self.ssh_backend = create_backend(connection_config, self)
+
+            # Connect signals (same as SSH)
+            self.ssh_backend.send_output.connect(self.update_ui)
+            self.ssh_backend.connection_established.connect(self.on_local_terminal_connected)
+            self.ssh_backend.connection_failed.connect(self.on_local_terminal_failed)
+
+            print("Local terminal backend established successfully")
+            return True
+
+        except Exception as e:
+            print(f"Failed to establish local terminal backend: {e}")
+            import traceback
+            traceback.print_exc()
+            QMessageBox.critical(None, "Connection Failed", f"Failed to connect to local terminal:\n{str(e)}")
+            self.ssh_backend = None
+            return False
+
+    def on_local_terminal_connected(self):
+        """Handle successful local terminal connection"""
+        print("Local terminal connected successfully!")
+
+    def on_local_terminal_failed(self, error_msg):
+        """Handle failed local terminal connection"""
+        print(f"Local terminal connection failed: {error_msg}")
+        QMessageBox.critical(None, "Terminal Connection Failed", f"Failed to connect to terminal:\n{error_msg}")
+
+    def on_ssh_connected(self):
+        """Handle successful SSH connection"""
+        print("SSH connected successfully!")
+
+    def on_ssh_failed(self, error_msg):
+        """Handle failed SSH connection"""
+        print(f"SSH connection failed: {error_msg}")
+        QMessageBox.critical(None, "SSH Connection Failed", f"Failed to connect to SSH server:\n{error_msg}")
+
+
 
     def connect_to_ssh(self, ssh_config):
         """Connect to SSH server with given configuration"""
@@ -489,14 +543,25 @@ class TerminalWithHardwareGrid(QWidget):
                 print(f"Error updating cursor: {e}")
 
     def keyPressEvent(self, event):
-        """Handle key press events"""
+        """Handle key press events - ENHANCED DEBUG VERSION"""
         if self._is_closing:
             return
 
+        print(f"🔑 Key pressed: {event.key()}, text: '{event.text()}', modifiers: {event.modifiers()}")
+        print(f"🔑 Backend type: {type(self.ssh_backend)}")
+        print(
+            f"🔑 Backend has send_command: {hasattr(self.ssh_backend, 'send_command') if self.ssh_backend else 'No backend'}")
+        print(
+            f"🔑 Backend has write_data: {hasattr(self.ssh_backend, 'write_data') if self.ssh_backend else 'No backend'}")
+
         if self.ssh_backend:
             handled = KeyHandler.handle_key_event(event, self.ssh_backend)
+            print(f"🔑 Key handled by KeyHandler: {handled}")
             if handled:
                 return
+        else:
+            print("🔑 No backend available for key handling")
+
         super().keyPressEvent(event)
 
     def focusInEvent(self, event):
@@ -740,7 +805,6 @@ class HardwareTerminalWindow(QMainWindow):
             if hasattr(self.terminal.grid_widget, 'reset_ambient_glow_to_theme_default'):
                 self.terminal.grid_widget.reset_ambient_glow_to_theme_default()
                 level = self.terminal.grid_widget.get_ambient_glow_level()
-                self.show_brief_message(f"Ambient Glow Reset: {level}%")
 
     def show_ambient_glow_status(self):
         """Show current ambient glow status"""
@@ -763,82 +827,198 @@ class HardwareTerminalWindow(QMainWindow):
             QMessageBox.information(self, "No Connection", "No SSH connection established. Exiting application.")
             self.close_application()
 
+
+
     def handle_connection_request(self, connection_config):
-        """Handle connection request from dialog"""
+        """Handle connection request from dialog - supports both SSH and local terminals"""
         if self._is_closing:
             return
 
         print(f"Connecting to: {connection_config}")
 
-        # Show connecting message
-        self.setWindowTitle(f"Connecting to {connection_config['username']}@{connection_config['hostname']}...")
+        connection_type = connection_config.get('connection_type', 'ssh')
 
-        # Connect terminal to SSH
-        success = self.terminal.connect_to_ssh(connection_config)
+        if connection_type == 'ssh':
+            # SSH connection
+            self.setWindowTitle(f"Connecting to {connection_config['username']}@{connection_config['hostname']}...")
 
-        if success:
-            # Update window title with connection info
-            self.setWindowTitle(f"SSH Terminal - {connection_config['username']}@{connection_config['hostname']}:{connection_config['port']}")
-            print("Connection established successfully!")
+            # Connect terminal to SSH
+            success = self.connect_to_ssh(connection_config)
+
+            if success:
+                # Update window title with SSH connection info
+                self.setWindowTitle(
+                    f"SSH Terminal - {connection_config['username']}@{connection_config['hostname']}:{connection_config['port']}")
+                print("SSH connection established successfully!")
+            else:
+                # SSH connection failed - show dialog again
+                QMessageBox.critical(self, "Connection Failed", "Failed to establish SSH connection.")
+
         else:
-            # Connection failed - show dialog again
-            QMessageBox.critical(self, "Connection Failed", "Failed to establish SSH connection.")
-            self.show_connection_dialog()
+            # Local terminal connection
+            shell_name = connection_config.get('shell_path', 'Terminal')
+            self.setWindowTitle(f"Connecting to {shell_name}...")
+
+            # Connect terminal to local shell
+            success = self.connect_to_local_terminal(connection_config)
+
+            if success:
+                # Update window title with local terminal info
+                working_dir = connection_config.get('working_dir', '')
+                if working_dir:
+                    self.setWindowTitle(f"{shell_name} - {working_dir}")
+                else:
+                    self.setWindowTitle(f"Local Terminal - {shell_name}")
+                print("Local terminal connection established successfully!")
+            else:
+                # Local connection failed - show dialog again
+                QMessageBox.critical(self, "Connection Failed", "Failed to establish local terminal connection.")
+
+    def connect_to_local_terminal(self, connection_config):
+        """Connect to local terminal with given configuration"""
+        if self._is_closing:
+            return False
+
+        try:
+            print(f"Connecting to local terminal: {connection_config}")
+
+            # Import and use the backend factory
+            from coolpyterm.backend_factory import create_backend
+
+            # Create appropriate backend (Windows terminal)
+            backend = create_backend(connection_config, self.terminal)  # Pass terminal widget, not main window
+
+            # Store backend in BOTH places for now
+            self.ssh_backend = backend  # Main window (for cleanup)
+            self.terminal.ssh_backend = backend  # Terminal widget (for keyboard handling)
+
+            # Connect signals (same as SSH)
+            backend.send_output.connect(self.terminal.update_ui)
+            backend.connection_established.connect(self.on_local_terminal_connected)
+            backend.connection_failed.connect(self.on_local_terminal_failed)
+
+            print("Local terminal backend established successfully")
+            print(f"Backend stored in main window: {type(self.ssh_backend)}")
+            print(f"Backend stored in terminal widget: {type(self.terminal.ssh_backend)}")
+            return True
+
+        except Exception as e:
+            print(f"Failed to establish local terminal backend: {e}")
+            import traceback
+            traceback.print_exc()
+            QMessageBox.critical(None, "Connection Failed", f"Failed to connect to local terminal:\n{str(e)}")
+            self.ssh_backend = None
+            self.terminal.ssh_backend = None
+            return False
+    def on_local_terminal_connected(self):
+        """Handle successful local terminal connection"""
+        print("Local terminal connected successfully!")
+
+    def on_local_terminal_failed(self, error_msg):
+        """Handle failed local terminal connection"""
+        print(f"Local terminal connection failed: {error_msg}")
+        QMessageBox.critical(None, "Terminal Connection Failed", f"Failed to connect to terminal:\n{error_msg}")
+
+    def on_ssh_connected(self):
+        """Handle successful SSH connection"""
+        print("SSH connected successfully!")
+
+    def on_ssh_failed(self, error_msg):
+        """Handle failed SSH connection"""
+        print(f"SSH connection failed: {error_msg}")
+        QMessageBox.critical(None, "SSH Connection Failed", f"Failed to connect to SSH server:\n{error_msg}")
+
+    def connect_to_ssh(self, ssh_config):
+        """Connect to SSH server with given configuration"""
+        if self._is_closing:
+            return False
+
+        try:
+            print(f"Connecting to SSH: {ssh_config['username']}@{ssh_config['hostname']}:{ssh_config['port']}")
+
+            # Use the backend factory for consistency
+            from coolpyterm.backend_factory import create_backend
+
+            backend = create_backend(ssh_config, self.terminal)  # Pass terminal widget
+
+            # Store backend in BOTH places
+            self.ssh_backend = backend  # Main window
+            self.terminal.ssh_backend = backend  # Terminal widget
+
+            # Connect signals
+            backend.send_output.connect(self.terminal.update_ui)
+            backend.connection_established.connect(self.on_ssh_connected)
+            backend.connection_failed.connect(self.on_ssh_failed)
+
+            print("SSH backend established successfully")
+            return True
+
+        except Exception as e:
+            print(f"Failed to establish SSH backend: {e}")
+            import traceback
+            traceback.print_exc()
+            QMessageBox.critical(None, "Connection Failed", f"Failed to connect to SSH server:\n{str(e)}")
+            self.ssh_backend = None
+            self.terminal.ssh_backend = None
+            return False
 
     def create_menu_system(self):
-        """Complete menu system with dynamic theme detection"""
+        """Complete menu system with disabled mnemonics to avoid DOS app conflicts"""
         menubar = self.menuBar()
 
-        # File Menu
-        file_menu = menubar.addMenu('&File')
+        # CRITICAL: Disable menu mnemonics so Alt+F, Alt+E etc. go to terminal
+        menubar.setNativeMenuBar(False)  # Important for consistent behavior
 
-        # Connection manager menu item
-        connection_action = QAction('Connection &Manager...', self)
+        # File Menu - REMOVE & from menu titles
+        file_menu = menubar.addMenu('File')  # No '&' here
+
+        # Connection manager menu item - REMOVE & from actions too
+        connection_action = QAction('Connection Manager...', self)  # No '&'
         connection_action.setShortcut('Ctrl+M')
         connection_action.triggered.connect(self.show_connection_manager)
         file_menu.addAction(connection_action)
 
         # New connection action
-        new_connection_action = QAction('&New Connection...', self)
+        new_connection_action = QAction('New Connection...', self)  # No '&'
         new_connection_action.setShortcut('Ctrl+N')
         new_connection_action.triggered.connect(self.show_new_connection_dialog)
         file_menu.addAction(new_connection_action)
 
         file_menu.addSeparator()
 
-        exit_action = QAction('E&xit', self)
+        exit_action = QAction('Exit', self)  # No '&'
         exit_action.setShortcut('Ctrl+Q')
         exit_action.triggered.connect(self.close_application)
         file_menu.addAction(exit_action)
 
         # Edit Menu
-        edit_menu = menubar.addMenu('&Edit')
-        paste_action = QAction('&Paste', self)
+        edit_menu = menubar.addMenu('Edit')  # No '&'
+        paste_action = QAction('Paste', self)  # No '&'
         paste_action.setShortcut('Ctrl+V')
         paste_action.triggered.connect(self.terminal.paste_from_clipboard)
         edit_menu.addAction(paste_action)
 
         # View Menu
-        view_menu = menubar.addMenu('&View')
-        self.fullscreen_action = QAction('&Full Screen', self)
+        view_menu = menubar.addMenu('View')  # No '&'
+        self.fullscreen_action = QAction('Full Screen', self)  # No '&'
         self.fullscreen_action.setShortcut(QKeySequence('Ctrl+Alt+F11'))
         self.fullscreen_action.setCheckable(True)
         self.fullscreen_action.triggered.connect(self.toggle_fullscreen)
         view_menu.addAction(self.fullscreen_action)
 
-        # DYNAMIC Theme Menu
-        theme_menu = menubar.addMenu('&Theme')
+        # Theme Menu
+        theme_menu = menubar.addMenu('Theme')  # No '&'
         self.theme_group = QActionGroup(self)
 
         # Get themes dynamically from theme manager
         themes = self.theme_manager.get_available_themes()
 
-        # Define display names for better menu appearance
+        # Define display names for better menu appearance (remove & from these too)
         theme_display_names = {
             'green': 'Green Phosphor',
             'amber': 'Amber Phosphor',
             'dos': 'DOS Terminal',
-            'ibm_bw': 'IBM DOS B&W',
+            'ibm_bw': 'IBM DOS',  # Removed B&W
             'plasma': 'Plasma Red'
         }
 
@@ -849,8 +1029,9 @@ class HardwareTerminalWindow(QMainWindow):
             display_name = theme_display_names.get(theme_name, theme_name.replace('_', ' ').title())
 
             # Add keyboard shortcut for first 9 themes (Ctrl+1, Ctrl+2, etc.)
+            # NO & characters in action names
             if i < 9:
-                action = QAction(f'&{i + 1}. {display_name}', self)
+                action = QAction(f'{i + 1}. {display_name}', self)  # No & here
                 action.setShortcut(f'Ctrl+{i + 1}')
             else:
                 action = QAction(f'{display_name}', self)
@@ -871,24 +1052,24 @@ class HardwareTerminalWindow(QMainWindow):
         # Add separator and theme info action
         theme_menu.addSeparator()
 
-        # Add "Show Theme Info" action for debugging
-        theme_info_action = QAction('Show Theme &Info...', self)
+        # Add "Show Theme Info" action for debugging (no &)
+        theme_info_action = QAction('Show Theme Info...', self)
         theme_info_action.triggered.connect(self.show_theme_info)
         theme_menu.addAction(theme_info_action)
 
         # Effects Menu
-        effects_menu = menubar.addMenu('&Effects')
+        effects_menu = menubar.addMenu('Effects')  # No '&'
 
-        # Phosphor glow
-        self.glow_action = QAction('Phosphor &Glow', self)
+        # Phosphor glow (no &)
+        self.glow_action = QAction('Phosphor Glow', self)
         self.glow_action.setCheckable(True)
         self.glow_action.setChecked(True)
         self.glow_action.setShortcut('Ctrl+G')
         self.glow_action.triggered.connect(self.toggle_glow)
         effects_menu.addAction(self.glow_action)
 
-        # Ambient background glow
-        self.ambient_glow_action = QAction('&Ambient Background Glow', self)
+        # Ambient background glow (no &)
+        self.ambient_glow_action = QAction('Ambient Background Glow', self)
         self.ambient_glow_action.setCheckable(True)
         self.ambient_glow_action.setChecked(True)  # Default on
         self.ambient_glow_action.setShortcut('Ctrl+Shift+A')
@@ -896,20 +1077,20 @@ class HardwareTerminalWindow(QMainWindow):
         self.ambient_glow_action.triggered.connect(self.toggle_ambient_glow)
         effects_menu.addAction(self.ambient_glow_action)
 
-        increase_ambient_action = QAction('Increase Ambient &Intensity', self)
+        increase_ambient_action = QAction('Increase Ambient Intensity', self)
         increase_ambient_action.setShortcut('Ctrl+Alt+I')
-        increase_ambient_action.setToolTip("Increase ambient glow intensity (I)")
+        increase_ambient_action.setToolTip("Increase ambient glow intensity")
         increase_ambient_action.triggered.connect(self.increase_ambient_glow)
         effects_menu.addAction(increase_ambient_action)
 
-        decrease_ambient_action = QAction('Decrease Ambient Intensit&y', self)
+        decrease_ambient_action = QAction('Decrease Ambient Intensity', self)
         decrease_ambient_action.setShortcut('Ctrl+Alt+O')
-        decrease_ambient_action.setToolTip("Decrease ambient glow intensity (O)")
+        decrease_ambient_action.setToolTip("Decrease ambient glow intensity")
         decrease_ambient_action.triggered.connect(self.decrease_ambient_glow)
         effects_menu.addAction(decrease_ambient_action)
 
-        # Scanlines
-        self.scanlines_action = QAction('&Scanlines', self)
+        # Scanlines (no &)
+        self.scanlines_action = QAction('Scanlines', self)
         self.scanlines_action.setCheckable(True)
         self.scanlines_action.setChecked(True)
         self.scanlines_action.setShortcut('Ctrl+S')
@@ -918,11 +1099,10 @@ class HardwareTerminalWindow(QMainWindow):
 
         effects_menu.addSeparator()
 
-        # Auto-adjust scanlines for DPI
-        auto_scanlines_action = QAction('&Auto-Adjust Scanlines', self)
+        # Auto-adjust scanlines for DPI (no &)
+        auto_scanlines_action = QAction('Auto-Adjust Scanlines', self)
         auto_scanlines_action.triggered.connect(self.auto_adjust_scanlines)
         effects_menu.addAction(auto_scanlines_action)
-
         effects_menu.addSeparator()
 
         # Cursor Controls submenu
@@ -1033,10 +1213,10 @@ class HardwareTerminalWindow(QMainWindow):
             new_contrast = max(0.5, min(2.0, current + delta))
             self.terminal.grid_widget.set_crt_controls(contrast=new_contrast)
 
-    def auto_adjust_scanlines(self):
-        """NEW: Auto-adjust scanlines for current display"""
-        if hasattr(self, 'terminal') and not self._is_closing:
-            self.terminal.grid_widget.adjust_scanlines_for_dpi()
+    # def auto_adjust_scanlines(self):
+    #     """NEW: Auto-adjust scanlines for current display"""
+    #     if hasattr(self, 'terminal') and not self._is_closing:
+    #         self.terminal.grid_widget.adjust_scanlines_for_dpi()
 
     def toggle_fullscreen(self):
         """Toggle between fullscreen and windowed mode"""
